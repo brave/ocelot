@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["test"]
+markers = [
+    "integration: GPU + Hub; opt in with OCELOT_TRAINING_E2E=1 (see test/training/test_one_batch_integration.py and test_prepare_data.py)",
+]

@@ -1,0 +1,5 @@
+{
+    "compute_environment": "LOCAL_MACHINE",
+    "distributed_type": "DEEPSPEED",
+    "num_processes": 1
+}

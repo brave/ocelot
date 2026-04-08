@@ -1,0 +1,18 @@
+# API only. Run: bash src/data/entrypoint.sh --brave-executable '…/out/Component_arm64'
+# AWS_* is forwarded when using Bedrock in api/config/vllm_config.yaml (same as src/data/api/docker-compose.yml).
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: src/data/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_DEFAULT_REGION
+      - AWS_REGION
+    volumes:
+      - ./api/output:/app/src/data/api/output
+      - ./api/config/vllm_config.yaml:/app/src/data/api/config/vllm_config.yaml:ro

@@ -1,0 +1,10 @@
+# Training dependencies are split by platform. Install exactly ONE file:
+#
+#   macOS (CPU / MPS — no NVIDIA CUDA wheels):
+#     pip install -r src/training/requirements-macos.txt
+#
+#   Linux + NVIDIA GPU (CUDA 12 stack):
+#     pip install -r src/training/requirements-linux-cuda.txt
+#
+# Default for scripts that still pass `requirements.txt`: Linux + CUDA (Docker / GPU servers).
+-r requirements-linux-cuda.txt

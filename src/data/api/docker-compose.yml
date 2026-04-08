@@ -1,0 +1,17 @@
+# For Bedrock backends in vllm_config.yaml: AWS_* is forwarded from the host (aws-vault exec, aws sso login, etc.).
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: src/data/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_DEFAULT_REGION
+      - AWS_REGION
+    volumes:
+      - ./output:/app/src/data/api/output
+      - ./config/vllm_config.yaml:/app/src/data/api/config/vllm_config.yaml:ro
