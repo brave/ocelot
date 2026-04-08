@@ -37,7 +37,7 @@ def _find_peft_adapter_dir(sft_dir: Path) -> Path:
     )
 
 
-def test_sft_one_optimizer_step_e2e(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tiny_sft_json: Path) -> None:
+def test_one_optimizer_step_e2e(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tiny_sft_json: Path) -> None:
     if not _e2e_enabled():
         pytest.skip("Set OCELOT_TRAINING_E2E=1 to run GPU end-to-end training (downloads model).")
 
