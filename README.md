@@ -1,41 +1,87 @@
 # Ocelot
 
-Ocelot is a small end-to-end stack for **preference-style LLM data**, **supervised / preference fine-tuning**, and **comparative evaluation**: collect examples from real browser sessions, train adapters on that data, and rank multiple model outputs with a stronger judge model.
+## About
 
-The three main areas of the repo are independent enough to run on their own, but they share a natural flow: **data → training → evaluation**. All three live under [`src/`](src/).
+**A suite of tools to collect web page data, train a model and evaluate it**
+
+Ocelot is a small toolkit that enables the automated collection of webpage data for model training. The primary use of the codebase is to train the Ocelot summarisation model, although it can easily be extended to other specific tasks.
+
+The codebase contains a small playwright script and data API to allow for the collection of web page data. It also contains training code for **supervised and preference fine-tuning** with **mixed text and image** datasets.
+Results can be tested using the LLM as a judge evaluation module included as well.
+
+### Data
+
+The data module enables the automated collection of a set of prompts to train a model via Leo in the brave browser. The browser will be pointed to a simple API that recieves the page content, makes requests to LLMs and then stores inputs and responses. This works with both web page text and images.
+
+### Evaluation
+
+Provides an LLM as a judge framework for simultaneously comparing, scoring and ranking, three different responses for a given prompt. This can be used to validate the performance of a trained model.
+
+### Training
+
+Provides a CLI to train an LLM on the collected prompts and responses via supervised fine tuning (SFT) and prefence fine tuning.
+
+The packages under [`src/`](src/) are usable on their own and are meant to compose in a simple pipeline: **data → training → evaluation**.
 
 ---
 
-## [`src/data/`](src/data/)
+## Module READMEs (full detail)
 
-Hosts the **collection pipeline** (automation against Brave, a local HTTP API, JSON artifacts on disk) and **postprocessing** that turns raw API output into fixed train/validation/test splits.
+Setup, CLI usage, configuration, and extension points are documented per module:
 
-The FastAPI “data API” that sits in the middle of collection lives under [`src/data/api/`](src/data/api/); it is documented separately from the top-level data README.
-
-**Where to read next:** [`src/data/README.md`](src/data/README.md) for the full orchestration story, prerequisites, and layout; [`src/data/api/README.md`](src/data/api/README.md) for the OpenAI-compatible gateway, `config/vllm_config.yaml`, and how requests become stored examples.
-
----
-
-## [`src/evaluation/`](src/evaluation/)
-
-Hosts **LLM-as-judge** tooling: compare three candidate answers to the same prompt using LiteLLM-backed judges (e.g. Bedrock or a local OpenAI-compatible server), with a CLI, Docker option, and a small library API.
-
-**Where to read next:** [`src/evaluation/README.md`](src/evaluation/README.md) for install, input format, providers, and programmatic use.
+| Module | README |
+| --- | --- |
+| Data collection & postprocessing | [`src/data/README.md`](src/data/README.md) |
+| Data API (FastAPI / OpenAI-compatible gateway) | [`src/data/api/README.md`](src/data/api/README.md) |
+| Training (LoRA, datasets, registry) | [`src/training/README.md`](src/training/README.md) |
+| Evaluation (LLM-as-judge) | [`src/evaluation/README.md`](src/evaluation/README.md) |
 
 ---
 
-## [`src/training/`](src/training/)
+## Repository layout
 
-Hosts a **modular training entrypoint** for instruction / preference fine-tuning with LoRA (multiple trainer types, shared config and data plumbing, extension points for new methods).
+The summaries below are intentionally short; use the README links for **further information**.
 
-**Where to read next:** [`src/training/README.md`](src/training/README.md) for how to invoke training, expected dataset shape, and how new methods plug into the registry.
+### [`src/data/`](src/data/)
+
+**Further information:** [`src/data/README.md`](src/data/README.md) (pipeline, prerequisites, layout). The FastAPI “data API” used in the collection flow lives under [`src/data/api/`](src/data/api/) — see [`src/data/api/README.md`](src/data/api/README.md) for the gateway, `config/vllm_config.yaml`, and how requests become stored examples.
+
+### [`src/evaluation/`](src/evaluation/)
+
+**Further information:** [`src/evaluation/README.md`](src/evaluation/README.md) (install, input format, providers, programmatic use).
+
+### [`src/training/`](src/training/)
+
+**Further information:** [`src/training/README.md`](src/training/README.md) (invoking training, expected dataset shape, registering new methods).
+
+---
+
+## Getting started
+
+Both the data collection, and evaluation can be run via docker compose. Note that a built version of the Brave Browser is required to run the data collection, and further instructions on how to do this can be seen in [`brave-core`](https://github.com/brave/brave-core).
+
+It is reccomended to run the training module on a suitable GPU device.
+
+For component-specific setup, follow the **Module READMEs** table above (data, API, training, or evaluation).
+
+---
+
+## Contributing
+
+If you wish to contribute, please raise any issues or PRs directly in this repository and we will endeavour to review them as quickly as possible. 
+
+Please ensure that any PR also has a linked issue explaining the rationale.
+
+## License
+
+This code is made available under the Mozilla Public License 2.0. Please see [`LICENSE.txt`](LICENSE.txt) for more information.
 
 ---
 
 ## Tests
 
 From the repository root:
-
+(note that the dependencies from each module will also need to be installed)
 ```bash
 python3 -m pip install -r requirements-dev.txt
 python3 -m pytest
@@ -75,9 +121,9 @@ Set **`OCELOT_TRAINING_E2E=1`** to enable the integration tests. Useful environm
 - **`OCELOT_E2E_MODEL_NAME`** — Hugging Face model id (default in tests is a small Qwen3-VL instruct checkpoint).
 - **`OCELOT_LOAD_IN_4BIT`** — on Apple Silicon the tests force `0` (no bitsandbytes); on CUDA you can keep 4-bit if `bitsandbytes` is installed.
 
-**[`test/training/test_one_batch_integration.py`](test/training/test_one_batch_integration.py)** — full trainer smoke: one **SFT** stage, load the saved LoRA checkpoint, then one **IPO** (CPO) stage on the same tiny JSON dataset.
+**[`test/training/test_one_batch_integration.py`](test/training/test_one_batch_integration.py)** — full trainer smoke: one **SFT** stage, load the saved LoRA checkpoint, then one preference stage (**IPO** / CPO or **DPO**, parametrized) on the same tiny JSON dataset.
 
-**[`test/training/test_prepare_data.py`](test/training/test_prepare_data.py)** — `prepare_data.main()` writes Parquet; **`test_prepare_data_parquet_sft_then_ipo_collator_forward_e2e`** loads it via `PREPARED_DATA_DIR`, runs one **SFT** batch through the model, then an **IPO-style** batch (`TokenizedDPOCollator`) with chosen and rejected forwards.
+**[`test/training/test_prepare_data.py`](test/training/test_prepare_data.py)** — `prepare_data.main()` writes Parquet; **`test_prepare_data_parquet_sft_then_ipo_collator_forward_e2e`** loads it via `PREPARED_DATA_DIR`, runs one **SFT** batch through the model, then a preference batch (`TokenizedDPOCollator`, layout shared by IPO and DPO) with chosen and rejected forwards.
 
 Example:
 

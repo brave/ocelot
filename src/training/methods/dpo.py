@@ -17,14 +17,13 @@ from modeling.factory import build_model_and_processor
 
 class VisionSafeDPOTrainer(DPOTrainer):
     def null_ref_context(self):
-        # Keep LoRA ON for the "ref" pass (mirrors train_script.py override).
+        # Keep LoRA ON for the "ref" pass
         return contextlib.nullcontext()
 
     def _prepare_dataset(self, dataset, processing_class, args, dataset_name):
-        # If TRL is precomputing ref log-probs, let it run its normal pipeline.
-        if getattr(args, "precompute_ref_log_probs", False):
-            return super()._prepare_dataset(dataset, processing_class, args, dataset_name)
-
+        # Pre-tokenized rows from `load_and_prepare_datasets` have no string `chosen`/`rejected`.
+        # TRL's default path always tries to remove those columns after tokenization; that raises if
+        # `precompute_ref_log_probs=True` forced super() before this check (see datasets remove_columns).
         cols = set(getattr(dataset, "column_names", []) or [])
         if REQUIRED_TOKEN_COLS.issubset(cols):
             return dataset
@@ -96,7 +95,7 @@ class DPOMethod(TrainingMethod):
             **args.to_dict(),
         )
 
-        # --- DPO memory knobs (copied from train_script.py) ---
+        # --- DPO memory knobs 
         # 1) concatenated_forward toggle
         _concat_env = os.environ.get("DPO_CONCATENATED_FORWARD", "0").strip().lower()
         _want_concat = _concat_env in {"1", "true", "yes"}

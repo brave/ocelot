@@ -31,6 +31,8 @@ python3 -m pip install -r src/training/requirements-macos.txt
 OCELOT_TRAINING_E2E=1 python3 -m pytest test/training/test_one_batch_integration.py -v
 ```
 
+That file parametrizes **IPO** and **DPO** (two cases: SFT → load adapter → one epoch of each preference trainer).
+
 Optional: `OCELOT_E2E_MODEL_NAME=...` overrides the default checkpoint in the test file (`Qwen/Qwen3-VL-2B-Instruct` at time of writing). On MPS, 4-bit quantization is turned off automatically.
 
 **Intel Macs** without CUDA or MPS cannot run this integration test (it will skip). Use **Linux + NVIDIA GPU** for that, or run the rest of the suite with `python3 -m pytest` (non-integration tests only need `requirements-dev.txt`).

@@ -1,5 +1,3 @@
-"""PyArrow helpers for writing tokenized training rows to Parquet (used by `prepare_data.py`)."""
-
 from __future__ import annotations
 
 import pyarrow as pa

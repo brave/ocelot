@@ -1,6 +1,7 @@
-"""End-to-end SFT then IPO smoke test (opt-in: OCELOT_TRAINING_E2E=1).
+"""End-to-end SFT then preference-method smoke tests (opt-in: OCELOT_TRAINING_E2E=1).
 
-Runs one SFT stage, loads the saved PEFT adapter, then runs one IPO (CPO) stage on the same data.
+Runs one SFT stage, loads the saved PEFT adapter, then runs one **IPO** (CPO) or **DPO** stage
+on the same data (parametrized).
 
 Needs an accelerator: NVIDIA CUDA or Apple Silicon MPS (macOS).
 
@@ -37,7 +38,10 @@ def _find_peft_adapter_dir(sft_dir: Path) -> Path:
     )
 
 
-def test_one_optimizer_step_e2e(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tiny_sft_json: Path) -> None:
+@pytest.mark.parametrize("pref_trainer", ["ipo", "dpo"])
+def test_one_optimizer_step_e2e(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tiny_sft_json: Path, pref_trainer: str
+) -> None:
     if not _e2e_enabled():
         pytest.skip("Set OCELOT_TRAINING_E2E=1 to run GPU end-to-end training (downloads model).")
 
@@ -74,6 +78,7 @@ def test_one_optimizer_step_e2e(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
     monkeypatch.setenv("DATA_SHUFFLE_SEED", "42")
 
     from core.config import RunConfig
+    from methods.dpo import DPOMethod
     from methods.ipo import IPOMethod
     from methods.sft import SFTMethod
 
@@ -110,11 +115,12 @@ def test_one_optimizer_step_e2e(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
     ), f"expected PEFT adapter or checkpoint under {sft_dir}, got: {[p.name for p in artifacts if p.is_file()][:20]}"
 
     adapter_dir = _find_peft_adapter_dir(sft_dir)
-    cfg_ipo = RunConfig(trainer="ipo", epochs=1, resume_from=str(adapter_dir), **shared)
-    IPOMethod().run(cfg_ipo)
+    pref_method = IPOMethod() if pref_trainer == "ipo" else DPOMethod()
+    cfg_pref = RunConfig(trainer=pref_trainer, epochs=1, resume_from=str(adapter_dir), **shared)
+    pref_method.run(cfg_pref)
 
-    ipo_dir = out_root / "ipo"
-    assert ipo_dir.is_dir()
+    pref_dir = out_root / pref_trainer
+    assert pref_dir.is_dir()
     assert (out_root / "adapter-ocelot" / "adapter_config.json").is_file(), (
-        f"expected IPO stage to write PEFT adapter to {out_root / 'adapter-ocelot'}"
+        f"expected {pref_trainer.upper()} stage to write PEFT adapter to {out_root / 'adapter-ocelot'}"
     )

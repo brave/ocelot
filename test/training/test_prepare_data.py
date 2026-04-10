@@ -1,7 +1,7 @@
 """Tests for `prepare_data.py`: Parquet staging and compatibility with collators + model.
 
-E2E (opt-in): run `prepare_data`, load Parquet, then one **SFT** batch forward and one **IPO-style**
-batch (same `TokenizedDPOCollator` as IPO) with chosen + rejected forwards.
+E2E (opt-in): run `prepare_data`, load Parquet, then one **SFT** batch forward and one preference-style
+batch via `TokenizedDPOCollator` (shared tensor layout for **IPO** and **DPO**) with chosen + rejected forwards.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def test_chunk_to_arrow_roundtrip_through_parquet() -> None:
 
 
 def _forward_chosen_or_rejected(model, mb: dict, device, *, branch: str) -> None:
-    """One causal forward for chosen or rejected; IPO/CPO use the same tensors + shared prompt vision."""
+    """One causal forward for chosen or rejected; IPO/DPO use the same tensors + shared prompt vision."""
     import torch
 
     assert branch in {"chosen", "rejected"}
@@ -254,10 +254,10 @@ def test_prepare_data_parquet_sft_then_ipo_collator_forward_e2e(
     if logits_sft is not None:
         assert logits_sft.shape[0] == n
 
-    # IPO uses TokenizedDPOCollator (CPOTrainer); same layout as DPO — exercise prepared Parquet + vision bytes.
-    ipo_collator = TokenizedDPOCollator(vision_dtype=cfg.store_vision_dtype)
-    ipo_batch = ipo_collator(features)
+    # IPO (CPO) and DPO both use TokenizedDPOCollator — exercise prepared Parquet + vision bytes.
+    pref_collator = TokenizedDPOCollator(vision_dtype=cfg.store_vision_dtype)
+    pref_batch = pref_collator(features)
 
     with torch.no_grad():
-        _forward_chosen_or_rejected(bundle.model, ipo_batch, device, branch="chosen")
-        _forward_chosen_or_rejected(bundle.model, ipo_batch, device, branch="rejected")
+        _forward_chosen_or_rejected(bundle.model, pref_batch, device, branch="chosen")
+        _forward_chosen_or_rejected(bundle.model, pref_batch, device, branch="rejected")

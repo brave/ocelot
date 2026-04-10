@@ -34,9 +34,30 @@ def _dataloader_pin_memory() -> bool:
     return torch.cuda.is_available()
 
 
+def _mixed_precision_training_kwargs() -> dict:
+    """
+    bf16/fp16 flags must match what Accelerate allows for the active device.
+
+    - **CUDA:** bf16 when supported, else fp16.
+    - **MPS:** Accelerate rejects Trainer-level bf16 (no "native" bf16 AMP) and rejects fp16
+      ("requires a GPU (not 'mps')"). Use full precision for the training loop; the model may
+      still be loaded in a lower dtype from ``modeling.factory``.
+    - **CPU:** no mixed precision.
+    """
+    import torch
+
+    if torch.cuda.is_available():
+        if getattr(torch.cuda, "is_bf16_supported", lambda: False)():
+            return {"bf16": True, "fp16": False}
+        return {"bf16": False, "fp16": True}
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return {"bf16": False, "fp16": False}
+    return {"bf16": False, "fp16": False}
+
+
 def build_base_training_args(cfg: RunConfig, *, output_dir: str, epochs: int, learning_rate: float) -> TrainingArguments:
     """
-    Shared TrainingArguments defaults used by preference-style trainers (DPO/IPO) in `train_script.py`.
+    Shared TrainingArguments defaults used by preference-style trainers (DPO/IPO)
     """
     log_dir = os.path.join(output_dir, "logs")
     os.environ.setdefault("TENSORBOARD_LOGGING_DIR", log_dir)
@@ -47,7 +68,7 @@ def build_base_training_args(cfg: RunConfig, *, output_dir: str, epochs: int, le
         gradient_accumulation_steps=_grad_accum_steps(),
         learning_rate=float(learning_rate),
         num_train_epochs=int(epochs),
-        bf16=True,
+        **_mixed_precision_training_kwargs(),
         save_strategy="steps",
         save_steps=_save_steps(),
         eval_strategy="steps",
@@ -69,7 +90,7 @@ def build_base_training_args(cfg: RunConfig, *, output_dir: str, epochs: int, le
 
 def build_sft_training_args(cfg: RunConfig, *, output_dir: str, epochs: int, learning_rate: float) -> TrainingArguments:
     """
-    Shared TrainingArguments defaults used by the SFT warmup stage in `train_script.py`.
+    Shared TrainingArguments defaults used by the SFT warmup stage
     """
     log_dir = os.path.join(output_dir, "logs")
     os.environ.setdefault("TENSORBOARD_LOGGING_DIR", log_dir)
@@ -80,7 +101,7 @@ def build_sft_training_args(cfg: RunConfig, *, output_dir: str, epochs: int, lea
         gradient_accumulation_steps=_grad_accum_steps(),
         learning_rate=float(learning_rate),
         num_train_epochs=int(epochs),
-        bf16=True,
+        **_mixed_precision_training_kwargs(),
         logging_steps=2,
         logging_strategy="steps",
         save_strategy="epoch",

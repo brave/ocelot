@@ -5,7 +5,7 @@ import torch
 
 def pad_vision_from_lists(pv_list, grid_list, *, vision_dtype: str = "float16"):
     """
-    Minimal vision padding helper copied from `train_script.py`.
+    Minimal vision padding helper
 
     Accepts per-example `pixel_values` / `image_grid_thw` stored as Python lists (or None).
     Returns (pixel_values_tensor_or_None, image_grid_thw_tensor_or_None).

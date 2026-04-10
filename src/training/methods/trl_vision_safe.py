@@ -5,9 +5,6 @@ import os
 import numpy as np
 import torch
 
-# IPO/DPO: TRL runs dataset.map(process_row) before the collator. Same vision rules as
-# `data.collators._pixel_values_for_ex` (bytes+shape) and the JSON tokenize path (lists / []).
-
 
 def _vision_absent(x) -> bool:
     if x is None:
@@ -74,7 +71,6 @@ REQUIRED_TOKEN_COLS = {
 def process_row_with_vision(features: dict) -> dict:
     """
     Convert pre-tokenized dataset rows into the structure TRL expects, including optional vision columns.
-    Matches the `process_row` logic in `train_script.py`.
     """
     pv_t, grid_t = prompt_vision_tensors_from_features(features)
     return {

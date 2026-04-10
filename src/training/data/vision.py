@@ -7,10 +7,6 @@ from PIL import Image
 
 
 def configure_qwen_processor_image_limits(processor: Any, *, vision_max_pixels: int | None) -> None:
-    """
-    Mirrors the vision-related processor settings in `train_script.py`.
-    Safe no-ops if the processor doesn't expose these attributes.
-    """
     ip = getattr(processor, "image_processor", None)
     if ip is None:
         return
@@ -33,10 +29,6 @@ def configure_qwen_processor_image_limits(processor: Any, *, vision_max_pixels: 
 
 
 def downscale_pil_random_cap(img: Image.Image) -> Image.Image:
-    """
-    Matches `train_script.py`: if downscaling is enabled, pick a random pixel cap from a fixed set.
-    Note: the cap is NOT derived from `VISION_MAX_PIXELS` in the original script.
-    """
     if not isinstance(img, Image.Image):
         return img
 
@@ -52,9 +44,6 @@ def downscale_pil_random_cap(img: Image.Image) -> Image.Image:
 
 
 def maybe_downscale_images(image_inputs, *, vision_max_pixels: int | None) -> Any:
-    """
-    Mirrors `_maybe_downscale_images` from `train_script.py`.
-    """
     if vision_max_pixels is None or image_inputs is None:
         return image_inputs
     if isinstance(image_inputs, list):

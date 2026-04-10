@@ -1,6 +1,3 @@
-"""
-IPO stage: mirrors train_script.py exactly — VisionSafeCPOTrainer(CPOTrainer), same collator, same config pattern.
-"""
 from __future__ import annotations
 
 import os
@@ -19,7 +16,7 @@ from methods.trl_vision_safe import prompt_vision_tensors_from_features
 from modeling.factory import build_model_and_processor
 
 
-# Same required columns as train_script.py VisionSafeCPOTrainer
+# Same required columns as VisionSafeCPOTrainer
 _REQUIRED_COLS = {
     "prompt_input_ids",
     "prompt_attention_mask",
@@ -31,7 +28,6 @@ _REQUIRED_COLS = {
 
 
 class VisionSafeCPOTrainer(CPOTrainer):
-    """Replica of train_script.py VisionSafeCPOTrainer(CPOTrainer)."""
 
     def _prepare_dataset(self, dataset, processing_class, args, dataset_name):
         cols = set(getattr(dataset, "column_names", []) or [])
@@ -68,7 +64,7 @@ class VisionSafeCPOTrainer(CPOTrainer):
 
 
 def _build_cpo_config(cfg: RunConfig, args, processor) -> CPOConfig:
-    """Build CPOConfig like train_script.py: base args + IPO params, with fallbacks for TRL API changes."""
+    """Build CPOConfig: base args + IPO params, with fallbacks for TRL API changes."""
     save_steps = _save_steps()
     try:
         cpo_config = CPOConfig(
