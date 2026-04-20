@@ -19,6 +19,7 @@ This checkpoint is **not** a general-purpose chat assistant. **Do not use it for
   - **Rendered page text** wrapped in `<page>...</page>` **and**
   - The **fixed summarisation instruction** shown below (text path), **or**
   - **One or more webpage screenshots** with the **vision instruction** below (image path), when that matches how you collected or serve inputs.
+  - Input is expected to be plain text of webpage (not entire HTML) or Screenshots of a webpage.
 - **Out-of-scope:** Anything that is **not** summarisation of the provided source (the tags / images and instruction define the source). Using a different structure, skipping the tags/instruction, or asking unrelated questions **voids the training prior** and can produce unreliable or unsafe outputs.
 
 If your application needs a general assistant, use the **base instruct model** (or another general model), not this adapter.
@@ -33,11 +34,9 @@ If your application needs a general assistant, use the **base instruct model** (
 
 ## Prompt template (strict — match at inference)
 
-The adapter was built around **explicit delimiters and fixed instructions**. For **best results and predictable behaviour**, follow this contract.
+The adapter was built around **explicit delimiters and fixed instructions**. For **best results and predictable behaviour**, follow this contract. The summaries produced by this model are designed to follow a consistent, readable style and produce summaries in the same language as the content being summarised. NOTE the model is designed to produce a summary of either text or images, not both at once.
 
-The canonical strings match this repository’s data API: [`src/data/api/services/prompts.py`](../src/data/api/services/prompts.py) and wrapping logic in [`src/data/api/services/messages.py`](../src/data/api/services/messages.py).
-
-### Text summarisation 
+### Text & Image summarisation 
 
 1. Put the **verbatim page text** inside **exactly** these tags (newlines as shown are fine):
 
@@ -47,7 +46,15 @@ The is the text of a webpage: <page>
 </page>
 ```
 
-2. For
+2. For Images include the image_urls in the chat template after the following string:
+
+```text
+The following is a screenshot of a webpage:
+```
+or 
+```text
+The following are screenshots of a webpage:
+```
 
 3. It is also recommended to include a system prompt that details some behviour and securtiy instructions:
 
@@ -127,27 +134,13 @@ Adjust `device_map`, dtype, and generation kwargs to your hardware and serving s
 
 To run this model using vLLM
 ```bash
-python3 -m vllm.entrypoints.openai.api_server --model bravesoftware/Qwen3-VL-4B-Instruct-W4A16 —enable-lora --lora-modules ocelot=bravesoftware/Ocelot-1-VL --max-lora-rank 64 --host 0.0.0.0 --port 8000
+python3 -m vllm.entrypoints.openai.api_server --model bravesoftware/Qwen3-VL-4B-Instruct-W4A16 --enable-lora --lora-modules ocelot=bravesoftware/Ocelot-1-VL --max-lora-rank 64 --host 0.0.0.0 --port 8000
 ```
 
 ## Limitations and risks
 
 - **Summarisation Only:** This model is intended for the sole purpose of web page summarisation, it should not be used for alternative purposes such as general purpose chat, tool use, agentic workflows etc.
-- **Distribution shift:** Prompts that **omit `<page>`**, change the instruction wording, or use unrelated tasks can **hallucinate**. Always treat page HTML/text as **untrusted input**.
+- **Distribution shift:** Prompts that **omit `<page>`**, change the instruction wording, or use unrelated tasks can **hallucinate**. Always treat page text as **untrusted input**.
 - **Not a safety filter:** Summarisation can still reproduce **harmful, biased, or private** content present in the source. Add your own **content policy**, **PII handling**, and **moderation** upstream/downstream.
 - **Language:** Summaries should match the **source language**; do not assume multilingual parity beyond what the base model supports.
 - **Long context:** Very long pages may truncate depending on processor/model limits; verify limits for your deployment.
-
-
-## Citation
-
-```bibtex
-@misc{ocelot-qwen3-vl-4b-lora,
-  title = {Ocelot: LoRA adapter for Qwen3-VL-4B-Instruct (web page summarisation)},
-  author = {TODO},
-  year = {2026},
-  howpublished = {\url{https://huggingface.co/<your-hub-id>}},
-}
-```
-
-Also cite **Qwen3-VL** per the [base model card](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct).
