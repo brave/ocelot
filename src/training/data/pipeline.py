@@ -788,6 +788,13 @@ def load_and_prepare_datasets(cfg: RunConfig, *, processor: Any):
                     f"(train_bs={train_bs}, eval_bs={eval_bs}, world_size={world_size})",
                     flush=True,
                 )
+            # Drop assistant-only strings so TRL CPOTrainer does not run maybe_extract_prompt on them.
+            _str_pref = [c for c in ("chosen", "rejected") if c in dataset.column_names]
+            if _str_pref:
+                dataset = dataset.remove_columns(_str_pref)
+                _val_str = [c for c in _str_pref if c in val_dataset.column_names]
+                if _val_str:
+                    val_dataset = val_dataset.remove_columns(_val_str)
             dataset.set_format(type="torch", columns=train_cols, output_all_columns=True)
             val_dataset.set_format(type="torch", columns=val_cols, output_all_columns=True)
             return dataset, val_dataset
