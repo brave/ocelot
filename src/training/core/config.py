@@ -81,7 +81,6 @@ class RunConfig:
         p.add_argument("--tokenize-batch-size", type=int, default=int(os.environ.get("TOKENIZE_BATCH_SIZE", "32")))
         p.add_argument("--store-vision-dtype", default=os.environ.get("STORE_VISION_DTYPE", "float16"))
 
-        # If <= 0, disable. (Matches train_script behavior.)
         vmp = int(os.environ.get("VISION_MAX_PIXELS", "262144"))
         p.add_argument("--vision-max-pixels", type=int, default=vmp)
 
@@ -89,9 +88,6 @@ class RunConfig:
 
         p.add_argument("--sft-warmup-epochs", type=int, default=int(os.environ.get("SFT_EPOCHS", "0")))
 
-        # Defaults match `train_script.py`:
-        # - SFT stage: 1e-5 * 3
-        # - preference stage (IPO/DPO): 1e-5 / 2
         p.add_argument(
             "--sft-learning-rate",
             type=float,

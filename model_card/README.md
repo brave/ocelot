@@ -30,7 +30,7 @@ If your application needs a general assistant, use the **base instruct model** (
 |------|--------|
 | **Base** | `Qwen/Qwen3-VL-4B-Instruct` |
 | **Adapter** | LoRA (PEFT) on language-side linear modules (vision encoder frozen in training tooling) |
-| **Modality** | Text + image (VL); summarisation prompts may be **text-only**, **image-only**, or **both** depending on your deployment — stay consistent with the templates below. |
+| **Modality** | Text + image (VL); summarisation prompts should stay consistent with the templates below. |
 
 ## Prompt template (strict — match at inference)
 
