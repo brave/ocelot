@@ -10,7 +10,7 @@ attrs==25.4.0
 av==16.0.1
 bitsandbytes==0.49.0
 certifi==2025.11.12
-charset-normalizer==3.4.4
+charset-normalizer==3.4.7
 comm==0.2.3
 datasets==4.4.1
 debugpy==1.8.18
