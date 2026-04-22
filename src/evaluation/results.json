@@ -1,0 +1,14 @@
+[
+  {
+    "index": 0,
+    "example_id": "2fd1a29b79ac4bd29ad160a7246ff184_text",
+    "scores": {
+      "Model One": 5.0,
+      "Model Two": 3.0,
+      "Model Three": 1.0
+    },
+    "winner": "Model One",
+    "judge_reasoning": "This is an example evaluation",
+    "raw_model_output": "This is an example evaluation\",\n    \"score_a\": 5,\n    \"score_b\": 3,\n    \"score_c\": 1,\n    \"final_ranking\": [\"A\", \"B\", \"C\"]\n}"
+  }
+]

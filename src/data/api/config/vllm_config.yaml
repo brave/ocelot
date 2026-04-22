@@ -1,0 +1,39 @@
+# vLLM / LiteLLM config: chosen and rejected models
+# chosen_prompt -> chosen model -> chosen; rejected_prompt -> rejected model -> rejected
+# training_prompt is stored in output JSON (chosen/rejected prompts are not).
+# `model` is the served id; with api_base, LiteLLM gets openai/<model> unless you set litellm_model.
+# api_key: optional; leave "" for gateways that do not require auth (a placeholder is sent to satisfy the OpenAI client).
+#
+# region: optional. Top-level `region` applies to both arms when chosen/rejected omit it. Per-arm `region`
+# is sent to LiteLLM as aws_region_name (Bedrock). If unset, the SDK uses AWS_REGION / instance role.
+
+api_base: "https://localhost:8000/v1"
+api_key: ""
+
+chosen:
+  model: "summariser"
+  max_tokens: 1024
+  temperature: 0.0
+
+rejected:
+  model: "summariser"
+  max_tokens: 1024
+  temperature: 0.0
+
+# --- Example: AWS Bedrock (inference profile ARN). Uncomment and adjust; set api_base to "" for Bedrock-only. ---
+#
+# api_base: ""
+# api_key: ""
+# region: "us-east-1"
+#
+# chosen:
+#   model: "bedrock/arn:aws:bedrock:us-east-1:1234:inference-profile/your-profile-name"
+#   region: "us-east-1"
+#   max_tokens: 1024
+#   temperature: 0.0
+#
+# rejected:
+#   model: "bedrock/arn:aws:bedrock:us-east-1:1234:inference-profile/your-profile-name"
+#   # region optional here if top-level region is set
+#   max_tokens: 1024
+#   temperature: 0.0

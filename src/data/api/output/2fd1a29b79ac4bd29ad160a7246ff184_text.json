@@ -1,0 +1,13 @@
+{
+  "prompt": [
+    {
+      "role": "user",
+      "content": {
+        "type": "text",
+        "text": "<page>\nThis is an example web page content\n</page>\nSummarise the content in between the <page> tags. Stay faithful to what is written there: capture the main facts and themes, do not invent details, and use clear neutral prose."
+      }
+    }
+  ],
+  "chosen": "This is an example of a great summary.",
+  "rejected": "This is an example of a bad summary."
+}

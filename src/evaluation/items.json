@@ -1,0 +1,25 @@
+[
+  {
+    "example_id": "2fd1a29b79ac4bd29ad160a7246ff184_text",
+    "messages": [
+      {
+        "role": "user",
+        "content": "<page>\nThis is an example web page content\n</page>\nSummarise the content in between the <page> tags. Stay faithful to what is written there: capture the main facts and themes, do not invent details, and use clear neutral prose."
+      }
+    ],
+    "responses": [
+      {
+        "name": "Model One",
+        "text": "This is an example of a great summary."
+      },
+      {
+        "name": "Model Two",
+        "text": "This is an example of an okay summary."
+      },
+      {
+        "name": "Model Three",
+        "text": "This is an example of a bad summary."
+      }
+    ]
+  }
+]

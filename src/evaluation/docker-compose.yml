@@ -1,0 +1,20 @@
+# Build from repository root (same convention as src/data/docker-compose.yml).
+# From the repository root:
+#   aws-vault exec PROFILE -- docker compose -f src/evaluation/docker-compose.yml run --rm judge \
+#     --input-json /work/items.json --model YOUR_MODEL_ID --out /work/results.json
+#
+# AWS_* below is forwarded from the host environment (set by aws-vault exec, aws sso login, etc.).
+services:
+  judge:
+    build:
+      context: ../..
+      dockerfile: src/evaluation/Dockerfile
+    volumes:
+      - .:/work
+    working_dir: /work
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_DEFAULT_REGION
+      - AWS_REGION
