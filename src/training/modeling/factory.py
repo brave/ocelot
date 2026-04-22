@@ -71,14 +71,20 @@ def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
     ]
     if "Qwen/Qwen3.5" in cfg.model_name:
         target_substrings = [
-            # Standard self-attention (language model)
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            # Linear attention (language model) - currently MISSING
-            "out_proj", "in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a",
-            # MLP (language model)
-            "gate_proj", "up_proj", "down_proj",
-            # Visual merger
-            "merger.linear_fc1", "merger.linear_fc2",
+            "q_proj", 
+            "k_proj", 
+            "v_proj", 
+            "o_proj",
+            "out_proj", 
+            "in_proj_qkv", 
+            "in_proj_z", 
+            "in_proj_b", 
+            "in_proj_a",
+            "gate_proj", 
+            "up_proj", 
+            "down_proj",
+            "merger.linear_fc1", 
+            "merger.linear_fc2",
         ]
     target_modules = [
         name
