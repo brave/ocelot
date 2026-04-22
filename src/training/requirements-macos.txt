@@ -8,7 +8,7 @@ anyio==4.12.0
 asttokens==3.0.1
 attrs==25.4.0
 av==16.0.1
-bitsandbytes==0.49.0
+bitsandbytes==0.49.2
 certifi==2025.11.12
 charset-normalizer==3.4.4
 comm==0.2.3
