@@ -74,7 +74,7 @@ Please ensure that any PR also has a linked issue explaining the rationale.
 
 ## License
 
-This code is made available under the Mozilla Public License 2.0. Please see [`LICENSE.txt`](LICENSE.txt) for more information.
+This code is made available under the Mozilla Public License 2.0. Please see the [`LICENSE`](LICENSE) for more information.
 
 ---
 
