@@ -1,5 +1,5 @@
 fastapi==0.135.2
 uvicorn[standard]==0.42.0
-litellm==1.83.0
+litellm==1.83.7
 PyYAML==6.0.3
 botocore==1.42.85
