@@ -12,13 +12,59 @@ from core.hf_args import build_sft_training_args
 from data.collators import TokenizedSFTCollator
 from data.pipeline import load_and_prepare_datasets
 from methods.base import TrainingMethod
+from methods.logits_to_keep import (
+    compute_logits_to_keep_from_labels,
+    model_supports_logits_to_keep,
+    slice_labels_for_logits_to_keep,
+    use_logits_to_keep_enabled,
+)
 from modeling.factory import build_model_and_processor
+from modeling.liger_kernels import liger_fused_ce_active
 
 
 class VisionSFTTrainer(Trainer):
     """
     Plain HF Trainer for SFT, with a vision-safe collator + DeepSpeed-safe scalar loss.
     """
+
+    def __init__(self, *args, cfg: RunConfig | None = None, use_logits_to_keep: bool | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        want_keep = use_logits_to_keep_enabled() if use_logits_to_keep is None else use_logits_to_keep
+        if want_keep and liger_fused_ce_active(cfg):
+            if os.environ.get("LOCAL_RANK", "0") == "0":
+                print(
+                    "[sft] USE_LOGITS_TO_KEEP disabled: Liger fused linear CE is active "
+                    "(redundant and incompatible with logits_to_keep slicing)",
+                    flush=True,
+                )
+            want_keep = False
+        self.use_logits_to_keep = want_keep
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        if not self.use_logits_to_keep:
+            return super().compute_loss(
+                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+            )
+
+        labels = inputs.get("labels")
+        if labels is None or not model_supports_logits_to_keep(model):
+            return super().compute_loss(
+                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+            )
+
+        logits_to_keep = compute_logits_to_keep_from_labels(labels, ignore_index=-100)
+        if logits_to_keep is None:
+            return super().compute_loss(
+                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+            )
+
+        model_inputs = dict(inputs)
+        model_inputs["labels"] = slice_labels_for_logits_to_keep(labels, logits_to_keep)
+        model_inputs["logits_to_keep"] = logits_to_keep
+        model_inputs["use_cache"] = False
+        return super().compute_loss(
+            model, model_inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+        )
 
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()
@@ -61,6 +107,7 @@ def run_sft_stage(
         data_collator=collator,
         processing_class=processor.tokenizer,
         callbacks=list(callbacks),
+        cfg=cfg,
     )
     trainer.add_callback(PeriodicEvalCallback(trainer, eval_steps=resolve_periodic_eval_steps(trainer)))
     if getattr(args, "gradient_checkpointing", False):

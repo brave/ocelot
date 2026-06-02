@@ -38,7 +38,6 @@ class PeriodicEvalCallback(TrainerCallback):
 def enable_gradient_checkpointing_for_lora(model) -> None:
     """
     With LoRA + gradient checkpointing, PyTorch can warn that none of the inputs require grads.
-    This mirrors the helper from `train_script.py`.
     """
     if hasattr(model, "enable_input_require_grads"):
         try:

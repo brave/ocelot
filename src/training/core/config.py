@@ -52,6 +52,10 @@ class RunConfig:
     qat_target_bits: int = 4
     qat_warmup_steps: int = 120
 
+    # Liger fused kernels (Qwen3-VL; CUDA only)
+    use_liger: bool = False
+    liger_cross_entropy: bool = False
+
     @staticmethod
     def _default_deepspeed_path() -> str | None:
         here = Path(__file__).resolve().parents[1]  # src/training
@@ -106,6 +110,19 @@ class RunConfig:
         p.add_argument("--qat-target-bits", type=int, default=int(os.environ.get("QAT_TARGET_BITS", "4")))
         p.add_argument("--qat-warmup-steps", type=int, default=int(os.environ.get("QAT_WARMUP_STEPS", "120")))
 
+        p.add_argument(
+            "--use-liger",
+            action=argparse.BooleanOptionalAction,
+            default=_truthy_env("OCELOT_USE_LIGER", "0"),
+            help="Patch Qwen3-VL with Liger fused kernels before load (env: OCELOT_USE_LIGER).",
+        )
+        p.add_argument(
+            "--liger-cross-entropy",
+            action=argparse.BooleanOptionalAction,
+            default=_truthy_env("OCELOT_LIGER_CROSS_ENTROPY", "0"),
+            help="Use Liger cross_entropy=True instead of fused linear CE (env: OCELOT_LIGER_CROSS_ENTROPY).",
+        )
+
         ns = p.parse_args(argv)
 
         sft_max_length = int(ns.sft_max_length)
@@ -138,6 +155,8 @@ class RunConfig:
             enable_qat=bool(ns.enable_qat),
             qat_target_bits=int(ns.qat_target_bits),
             qat_warmup_steps=int(ns.qat_warmup_steps),
+            use_liger=bool(ns.use_liger),
+            liger_cross_entropy=bool(ns.liger_cross_entropy),
         )
 
 

@@ -11,6 +11,7 @@ from callbacks.qat import QATCallback, StableSimulatedQuant, apply_noise_to_base
 from core.config import RunConfig
 from core.torch_patches import patch_torch_linspace_steps
 from data.vision import configure_qwen_processor_image_limits
+from modeling.liger_kernels import maybe_apply_liger_kernel
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,8 @@ def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
     configure_qwen_processor_image_limits(processor, vision_max_pixels=cfg.vision_max_pixels)
 
     config = AutoConfig.from_pretrained(cfg.model_name)
+
+    maybe_apply_liger_kernel(cfg)
 
     attn_impl = os.environ.get("OCELOT_ATTN_IMPLEMENTATION", "flash_attention_2").strip() or "flash_attention_2"
     load_4bit = os.environ.get("OCELOT_LOAD_IN_4BIT", "1").strip().lower() in {"1", "true", "yes"}
