@@ -10,7 +10,7 @@ if str(_TRAINING) not in sys.path:
     sys.path.insert(0, str(_TRAINING))
 
 from core.config import RunConfig
-from modeling.liger_kernels import liger_fused_ce_active, liger_model_kind
+from modeling.liger_kernels import liger_fused_ce_active, liger_model_kind, use_liger_active
 
 
 def test_liger_model_kind_qwen3_vl() -> None:
@@ -23,6 +23,13 @@ def test_liger_model_kind_qwen3_vl_moe() -> None:
 
 def test_liger_model_kind_unsupported() -> None:
     assert liger_model_kind("Qwen/Qwen2-VL-2B-Instruct") is None
+
+
+def test_use_liger_active_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OCELOT_USE_LIGER", raising=False)
+    assert use_liger_active() is False
+    monkeypatch.setenv("OCELOT_USE_LIGER", "1")
+    assert use_liger_active() is True
 
 
 def test_liger_fused_ce_active_env(monkeypatch: pytest.MonkeyPatch) -> None:

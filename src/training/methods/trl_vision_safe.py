@@ -68,19 +68,16 @@ REQUIRED_TOKEN_COLS = {
 }
 
 
-def process_row_with_vision(features: dict) -> dict:
+def process_row_token_columns(features: dict) -> dict:
     """
-    Convert pre-tokenized dataset rows into the structure TRL expects, including optional vision columns.
+    Token columns only for TRL map() — vision is attached in the collator (avoids Arrow 2GB overflow).
     """
-    pv_t, grid_t = prompt_vision_tensors_from_features(features)
     return {
         "prompt_input_ids": torch.as_tensor(features["prompt_input_ids"], dtype=torch.int64),
         "prompt_attention_mask": torch.as_tensor(features["prompt_attention_mask"], dtype=torch.int64),
         "prompt_mm_token_type_ids": torch.as_tensor(
             features.get("prompt_mm_token_type_ids", [0] * len(features["prompt_input_ids"])), dtype=torch.int64
         ),
-        "prompt_pixel_values": pv_t,
-        "prompt_image_grid_thw": grid_t,
         "chosen_input_ids": torch.as_tensor(features["chosen_input_ids"], dtype=torch.int64),
         "chosen_attention_mask": torch.as_tensor(features["chosen_attention_mask"], dtype=torch.int64),
         "chosen_mm_token_type_ids": torch.as_tensor(
@@ -92,4 +89,52 @@ def process_row_with_vision(features: dict) -> dict:
             features.get("rejected_mm_token_type_ids", [0] * len(features["rejected_input_ids"])), dtype=torch.int64
         ),
     }
+
+
+def process_row_with_vision(features: dict) -> dict:
+    """
+    Convert pre-tokenized dataset rows into the structure TRL expects, including optional vision columns.
+    """
+    out = process_row_token_columns(features)
+    pv_t, grid_t = prompt_vision_tensors_from_features(features)
+    out["prompt_pixel_values"] = pv_t
+    out["prompt_image_grid_thw"] = grid_t
+    return out
+
+
+def dataset_is_pretokenized(dataset) -> bool:
+    cols = set(getattr(dataset, "column_names", []) or [])
+    return REQUIRED_TOKEN_COLS.issubset(cols)
+
+
+def dup_vision_for_concatenated(t: torch.Tensor) -> torch.Tensor:
+    """
+    Duplicate vision tensors for IPO/CPO concatenated forward ([chosen…, rejected…]).
+
+    The collator stacks patches as flat (total_patches, D) and image_grid_thw as (num_images, 3).
+    Doubling the full block yields [ex0 imgs, ex1 imgs, …, ex0 imgs, ex1 imgs, …], which matches
+    how Qwen-VL maps images onto concatenated text rows.
+
+    Never skip duplication when image_grid_thw.shape[0] == 2 * batch_size — that also occurs when
+    one example has two images (batch_size=1), which still must be doubled for chosen+rejected.
+    """
+    return torch.cat([t, t], dim=0)
+
+
+def concatenated_vision_kwargs(batch: dict) -> dict:
+    """Build model kwargs with pixel_values / image_grid_thw duplicated for concatenated forward."""
+    kwargs: dict = {}
+    pv = batch.get("prompt_pixel_values")
+    grid = batch.get("prompt_image_grid_thw")
+    if isinstance(pv, torch.Tensor) and pv.numel() > 0:
+        kwargs["pixel_values"] = dup_vision_for_concatenated(pv)
+    if isinstance(grid, torch.Tensor) and grid.numel() > 0:
+        kwargs["image_grid_thw"] = dup_vision_for_concatenated(grid)
+    return kwargs
+
+
+def drop_arrow_unsafe_vision_columns(dataset):
+    """Remove nested-list vision columns; collator uses pixel_values_bytes from Parquet."""
+    drop = [c for c in ("pixel_values", "prompt_pixel_values") if c in getattr(dataset, "column_names", [])]
+    return dataset.remove_columns(drop) if drop else dataset
 

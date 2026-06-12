@@ -11,6 +11,13 @@ def _truthy_env(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).strip().lower() in {"1", "true", "yes"}
 
 
+def use_liger_active(cfg: RunConfig | None = None) -> bool:
+    """True when Liger kernel patching is enabled (``use_liger`` or ``OCELOT_USE_LIGER``)."""
+    if cfg is not None:
+        return cfg.use_liger
+    return _truthy_env("OCELOT_USE_LIGER", "0")
+
+
 def liger_fused_ce_active(cfg: RunConfig | None = None) -> bool:
     """
     True when Liger fused linear cross-entropy is patched in (``use_liger`` without ``liger_cross_entropy``).
@@ -23,7 +30,7 @@ def liger_fused_ce_active(cfg: RunConfig | None = None) -> bool:
     """
     if cfg is not None:
         return cfg.use_liger and not cfg.liger_cross_entropy
-    return _truthy_env("OCELOT_USE_LIGER", "0") and not _truthy_env("OCELOT_LIGER_CROSS_ENTROPY", "0")
+    return use_liger_active() and not _truthy_env("OCELOT_LIGER_CROSS_ENTROPY", "0")
 
 
 def liger_model_kind(model_name: str) -> str | None:

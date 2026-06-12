@@ -56,6 +56,9 @@ class RunConfig:
     use_liger: bool = False
     liger_cross_entropy: bool = False
 
+    # Data loading
+    skip_tokenized_validation: bool = False
+
     @staticmethod
     def _default_deepspeed_path() -> str | None:
         here = Path(__file__).resolve().parents[1]  # src/training
@@ -122,11 +125,21 @@ class RunConfig:
             default=_truthy_env("OCELOT_LIGER_CROSS_ENTROPY", "0"),
             help="Use Liger cross_entropy=True instead of fused linear CE (env: OCELOT_LIGER_CROSS_ENTROPY).",
         )
+        prepared_default = "1" if (os.environ.get("PREPARED_DATA_DIR") or "").strip() else "0"
+        p.add_argument(
+            "--skip-tokenized-validation",
+            action=argparse.BooleanOptionalAction,
+            default=_truthy_env("SKIP_TOKENIZED_VALIDATION", prepared_default),
+            help="Skip post-tokenization row sanity checks (env: SKIP_TOKENIZED_VALIDATION; default on for PREPARED_DATA_DIR).",
+        )
 
         ns = p.parse_args(argv)
 
         sft_max_length = int(ns.sft_max_length)
         sft_max_prompt_length = min(int(ns.sft_max_prompt_length), sft_max_length)
+        # TRL CPO/DPO require max_prompt_length < max_length (strict).
+        if sft_max_prompt_length >= sft_max_length:
+            sft_max_prompt_length = max(1, sft_max_length - 1)
 
         vision_max_pixels = None if int(ns.vision_max_pixels) <= 0 else int(ns.vision_max_pixels)
 
@@ -157,6 +170,7 @@ class RunConfig:
             qat_warmup_steps=int(ns.qat_warmup_steps),
             use_liger=bool(ns.use_liger),
             liger_cross_entropy=bool(ns.liger_cross_entropy),
+            skip_tokenized_validation=bool(ns.skip_tokenized_validation),
         )
 
 

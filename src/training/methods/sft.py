@@ -19,7 +19,7 @@ from methods.logits_to_keep import (
     use_logits_to_keep_enabled,
 )
 from modeling.factory import build_model_and_processor
-from modeling.liger_kernels import liger_fused_ce_active
+from modeling.liger_kernels import liger_fused_ce_active, use_liger_active
 
 
 class VisionSFTTrainer(Trainer):
@@ -29,6 +29,8 @@ class VisionSFTTrainer(Trainer):
 
     def __init__(self, *args, cfg: RunConfig | None = None, use_logits_to_keep: bool | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._cfg = cfg
+        self._use_liger = use_liger_active(cfg)
         want_keep = use_logits_to_keep_enabled() if use_logits_to_keep is None else use_logits_to_keep
         if want_keep and liger_fused_ce_active(cfg):
             if os.environ.get("LOCAL_RANK", "0") == "0":
@@ -39,21 +41,57 @@ class VisionSFTTrainer(Trainer):
                 )
             want_keep = False
         self.use_logits_to_keep = want_keep
+        self._use_liger_fused_ce = liger_fused_ce_active(cfg)
+        if os.environ.get("LOCAL_RANK", "0") == "0":
+            if self._use_liger_fused_ce:
+                print("[sft] loss path: Liger fused linear CE (skip_logits)", flush=True)
+            elif self._use_liger:
+                print(
+                    "[sft] loss path: logits_to_keep "
+                    "(OCELOT_LIGER_CROSS_ENTROPY=1 does not support skip_logits; unset it to use fused CE)",
+                    flush=True,
+                )
+            elif self.use_logits_to_keep:
+                print("[sft] loss path: logits_to_keep", flush=True)
+            else:
+                print("[sft] loss path: full logits (high memory)", flush=True)
 
-    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        if not self.use_logits_to_keep:
-            return super().compute_loss(
-                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
-            )
+    def _compute_loss_with_liger(self, model, inputs, *, return_outputs: bool, num_items_in_batch=None):
+        """
+        Liger's patched forward only sets skip_logits=True in training mode; eval materializes full
+        logits and OOMs on long context. Force skip_logits so eval uses the fused loss path too.
+        """
+        model_inputs = dict(inputs)
+        model_inputs["skip_logits"] = True
+        loss = super().compute_loss(
+            model, model_inputs, return_outputs=False, num_items_in_batch=num_items_in_batch
+        )
+        if return_outputs:
+            return loss, None
+        return loss
 
+    def _warn_full_logits_once(self, reason: str) -> None:
+        if getattr(self, "_full_logits_warned", False):
+            return
+        self._full_logits_warned = True
+        if os.environ.get("LOCAL_RANK", "0") == "0":
+            print(f"[sft] WARNING: falling back to full-vocab logits ({reason})", flush=True)
+
+    def _compute_loss_with_logits_to_keep(self, model, inputs, *, return_outputs: bool, num_items_in_batch=None):
         labels = inputs.get("labels")
         if labels is None or not model_supports_logits_to_keep(model):
+            self._warn_full_logits_once(
+                "model does not support logits_to_keep"
+                if labels is not None
+                else "batch has no labels"
+            )
             return super().compute_loss(
                 model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
             )
 
         logits_to_keep = compute_logits_to_keep_from_labels(labels, ignore_index=-100)
         if logits_to_keep is None:
+            self._warn_full_logits_once("no supervised labels in batch")
             return super().compute_loss(
                 model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
             )
@@ -65,6 +103,27 @@ class VisionSFTTrainer(Trainer):
         return super().compute_loss(
             model, model_inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
         )
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        if self._use_liger_fused_ce:
+            return self._compute_loss_with_liger(
+                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+            )
+
+        if self.use_logits_to_keep:
+            return self._compute_loss_with_logits_to_keep(
+                model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+            )
+
+        self._warn_full_logits_once("USE_LOGITS_TO_KEEP=0")
+        return super().compute_loss(
+            model, inputs, return_outputs=return_outputs, num_items_in_batch=num_items_in_batch
+        )
+
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        if self._use_liger_fused_ce:
+            prediction_loss_only = True
+        return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
 
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()

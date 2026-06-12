@@ -21,11 +21,25 @@ class ModelBundle:
     callbacks: list[object]
 
 
+def _local_rank() -> int:
+    try:
+        return int(os.environ.get("LOCAL_RANK", "0"))
+    except Exception:
+        return 0
+
+
 def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
     patch_torch_linspace_steps()
 
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
+
+    local_rank = _local_rank()
+    use_cuda = torch.cuda.is_available()
+    if use_cuda:
+        torch.cuda.set_device(local_rank)
+    # Pin each distributed rank to its own GPU during from_pretrained (default cuda:0 otherwise).
+    load_device_map = {"": local_rank} if use_cuda else None
 
     processor = AutoProcessor.from_pretrained(cfg.model_name)
     configure_qwen_processor_image_limits(processor, vision_max_pixels=cfg.vision_max_pixels)
@@ -48,7 +62,7 @@ def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
             torch_dtype=torch.bfloat16,
             quantization_config=bnb_config,
             attn_implementation=attn_impl,
-            device_map=None,
+            device_map=load_device_map,
             config=config,
         )
         model = prepare_model_for_kbit_training(model)
@@ -57,7 +71,7 @@ def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
             cfg.model_name,
             torch_dtype=torch.bfloat16,
             attn_implementation=attn_impl,
-            device_map=None,
+            device_map=load_device_map,
             config=config,
         )
     
@@ -137,12 +151,7 @@ def build_model_and_processor(cfg: RunConfig) -> ModelBundle:
     # Ensure model is on an accelerator before Trainer init (mirrors script).
     if os.environ.get("MOVE_MODEL_TO_CUDA_BEFORE_TRAINER", "1").strip().lower() in {"1", "true", "yes"}:
         if torch.cuda.is_available():
-            try:
-                local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-            except Exception:
-                local_rank = 0
-            device = torch.device(f"cuda:{local_rank}")
-            model.to(device)
+            model.to(torch.device(f"cuda:{local_rank}"))
         elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
             model.to("mps")
 

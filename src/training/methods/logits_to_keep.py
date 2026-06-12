@@ -10,11 +10,36 @@ def use_logits_to_keep_enabled() -> bool:
     return os.environ.get("USE_LOGITS_TO_KEEP", "1").strip().lower() in {"1", "true", "yes"}
 
 
-def model_supports_logits_to_keep(model) -> bool:
-    """Return True if `model.forward` accepts `logits_to_keep`."""
-    for candidate in (model, getattr(model, "base_model", None), getattr(model, "model", None)):
+def _model_candidates(model) -> list:
+    """Walk DeepSpeed / DDP / PEFT wrappers to find modules that may support logits_to_keep."""
+    candidates: list = []
+    seen: set[int] = set()
+    queue = [model]
+    while queue:
+        candidate = queue.pop(0)
         if candidate is None:
             continue
+        cid = id(candidate)
+        if cid in seen:
+            continue
+        seen.add(cid)
+        candidates.append(candidate)
+        get_base = getattr(candidate, "get_base_model", None)
+        if callable(get_base):
+            try:
+                queue.append(get_base())
+            except Exception:
+                pass
+        for attr in ("module", "base_model", "model"):
+            child = getattr(candidate, attr, None)
+            if child is not None and id(child) not in seen:
+                queue.append(child)
+    return candidates
+
+
+def model_supports_logits_to_keep(model) -> bool:
+    """Return True if `model.forward` accepts `logits_to_keep`."""
+    for candidate in _model_candidates(model):
         fn = getattr(candidate, "_supports_logits_to_keep", None)
         if callable(fn) and fn():
             return True
