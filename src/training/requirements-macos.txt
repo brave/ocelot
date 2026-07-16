@@ -1,6 +1,6 @@
 # macOS (CPU / MPS). No NVIDIA CUDA wheels and no Triton (not used on Apple Silicon the same way).
 accelerate==1.12.0
-aiohappyeyeballs==2.6.1
+aiohappyeyeballs==2.7.1
 aiohttp==3.14.1
 aiosignal==1.4.0
 annotated-types==0.7.0
