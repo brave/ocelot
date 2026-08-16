@@ -17,7 +17,7 @@ debugpy==1.8.18
 decorator==5.2.1
 deepspeed==0.18.3
 dill==0.4.0
-einops==0.8.1
+einops==0.8.2
 executing==2.2.1
 filelock==3.20.3
 frozenlist==1.8.0
