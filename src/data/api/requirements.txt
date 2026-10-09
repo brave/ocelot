@@ -1,4 +1,4 @@
-fastapi==0.135.2
+fastapi==0.142.2
 uvicorn[standard]==0.42.0
 litellm==1.93.2
 PyYAML==6.0.3
