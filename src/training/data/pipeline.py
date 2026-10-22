@@ -10,7 +10,6 @@ from typing import Any
 import torch
 from datasets import Dataset, Features, Sequence, Value, concatenate_datasets, load_dataset
 from PIL import Image
-from tqdm import tqdm
 from qwen_vl_utils import process_vision_info
 
 from core.config import RunConfig
@@ -70,23 +69,27 @@ def _trim_to_batch_multiple(dataset: Dataset, batch_size: int, world_size: int =
     return dataset.select(range(new_len)), remainder
 
 
-def _example_has_image(ex: dict, *, column_names: set[str]) -> bool:
-    # Prepared-data path: image grids are present after tokenization.
-    if "image_grid_thw" in column_names:
-        g = ex.get("image_grid_thw")
-        return bool(g) and len(g) > 0
-    # Raw/preprocessed path: concrete images list.
-    if "images" in column_names:
-        imgs = ex.get("images")
-        return bool(imgs) and len(imgs) > 0
-    # Raw JSON path: inspect prompt parts for image placeholders.
-    if "prompt" in column_names:
-        for msg in ex.get("prompt") or []:
-            for part in msg.get("content") or []:
-                if isinstance(part, dict) and part.get("type") in {"image_url", "image"}:
-                    return True
-        return False
-    return False
+def _has_image_flags(dataset: Dataset) -> list[bool]:
+    """Return per-row image flags without loading heavy columns (e.g. pixel_values_bytes)."""
+    cols = set(dataset.column_names)
+    if "image_grid_thw" in cols:
+        return [bool(g) and len(g) > 0 for g in dataset["image_grid_thw"]]
+    if "images" in cols:
+        return [bool(imgs) and len(imgs) > 0 for imgs in dataset["images"]]
+    if "prompt" in cols:
+        flags: list[bool] = []
+        for prompt in dataset["prompt"]:
+            found = False
+            for msg in prompt or []:
+                for part in msg.get("content") or []:
+                    if isinstance(part, dict) and part.get("type") in {"image_url", "image"}:
+                        found = True
+                        break
+                if found:
+                    break
+            flags.append(found)
+        return flags
+    return [False] * len(dataset)
 
 
 def _drop_image_samples(dataset: Dataset, *, drop_ratio: float, seed: int) -> tuple[Dataset, int, int]:
@@ -96,14 +99,15 @@ def _drop_image_samples(dataset: Dataset, *, drop_ratio: float, seed: int) -> tu
     """
     if drop_ratio <= 0:
         return dataset, 0, 0
+    has_img = _has_image_flags(dataset)
+    if not any(has_img):
+        return dataset, 0, 0
     rng = random.Random(int(seed))
-    cols = set(dataset.column_names)
     keep_idx: list[int] = []
     image_count = 0
     dropped = 0
-    for i, ex in tqdm(enumerate(dataset)):
-        has_img = _example_has_image(ex, column_names=cols)
-        if has_img:
+    for i, hi in enumerate(has_img):
+        if hi:
             image_count += 1
             if rng.random() < float(drop_ratio):
                 dropped += 1
@@ -185,6 +189,61 @@ def _tokenized_row_is_valid(ex: dict) -> bool:
     if grid_tokens > 0:
         return False
     return True
+
+
+# Columns read by `_tokenized_row_is_valid` only (exclude heavy Parquet fields like pixel_values_bytes).
+_TOKENIZED_VALIDATION_COLUMNS = (
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "mm_token_type_ids",
+    "prompt_input_ids",
+    "prompt_attention_mask",
+    "prompt_mm_token_type_ids",
+    "chosen_input_ids",
+    "chosen_attention_mask",
+    "chosen_mm_token_type_ids",
+    "rejected_input_ids",
+    "rejected_attention_mask",
+    "rejected_mm_token_type_ids",
+    "image_grid_thw",
+    "pixel_values_shape",
+    "pixel_values",
+)
+
+
+def _validation_input_columns(dataset: Dataset) -> list[str]:
+    cols = set(dataset.column_names)
+    return [c for c in _TOKENIZED_VALIDATION_COLUMNS if c in cols]
+
+
+def _filter_tokenized_valid_batch(batch: dict) -> list[bool]:
+    if not batch:
+        return []
+    n = len(next(iter(batch.values())))
+    return [
+        _tokenized_row_is_valid({col: batch[col][i] for col in batch})
+        for i in range(n)
+    ]
+
+
+def _filter_valid_tokenized_rows(dataset: Dataset, *, desc: str, skip: bool = False) -> tuple[Dataset, int]:
+    """Drop malformed tokenized rows. Returns (filtered dataset, num_dropped)."""
+    del desc  # kept for call-site clarity; no HF rewrite pass needed
+    if skip:
+        return dataset, 0
+    before = len(dataset)
+    input_cols = _validation_input_columns(dataset)
+    if not input_cols:
+        return dataset, 0
+    # Read only lightweight columns, then select indices (avoids rewriting pixel_values_bytes).
+    col_data = {c: dataset[c] for c in input_cols}
+    keep_idx = [
+        i
+        for i in range(before)
+        if _tokenized_row_is_valid({c: col_data[c][i] for c in input_cols})
+    ]
+    return dataset.select(keep_idx), before - len(keep_idx)
 
 
 def _get_chat_messages(ex: dict) -> list:
@@ -761,23 +820,19 @@ def load_and_prepare_datasets(cfg: RunConfig, *, processor: Any):
             ]
             train_cols = [c for c in torch_cols if c in dataset.column_names]
             val_cols = [c for c in torch_cols if c in val_dataset.column_names]
-            before_train = len(dataset)
-            before_val = len(val_dataset)
-            dataset = dataset.filter(
-                _tokenized_row_is_valid,
+            if rank == 0 and cfg.skip_tokenized_validation:
+                print("[data] skipping tokenized row validation", flush=True)
+            dataset, dt = _filter_valid_tokenized_rows(
+                dataset,
                 desc="Validate tokenized train rows",
-                load_from_cache_file=False,
-                writer_batch_size=1000,
+                skip=cfg.skip_tokenized_validation,
             )
-            val_dataset = val_dataset.filter(
-                _tokenized_row_is_valid,
+            val_dataset, dv = _filter_valid_tokenized_rows(
+                val_dataset,
                 desc="Validate tokenized val rows",
-                load_from_cache_file=False,
-                writer_batch_size=1000,
+                skip=cfg.skip_tokenized_validation,
             )
             if rank == 0:
-                dt = before_train - len(dataset)
-                dv = before_val - len(val_dataset)
                 print(f"[data] dropped invalid tokenized rows: train={dt}, val={dv}", flush=True)
             train_bs, eval_bs = _per_device_batch_size(), _per_device_eval_batch_size()
             dataset, train_drop = _trim_to_batch_multiple(dataset, train_bs, world_size)
@@ -935,23 +990,17 @@ def load_and_prepare_datasets(cfg: RunConfig, *, processor: Any):
         writer_batch_size=1000,
         features=_tok_features,
     )
-    before_train = len(dataset)
-    before_val = len(val_dataset)
-    dataset = dataset.filter(
-        _tokenized_row_is_valid,
+    dataset, dt = _filter_valid_tokenized_rows(
+        dataset,
         desc="Validate tokenized train rows",
-        load_from_cache_file=False,
-        writer_batch_size=1000,
+        skip=cfg.skip_tokenized_validation,
     )
-    val_dataset = val_dataset.filter(
-        _tokenized_row_is_valid,
+    val_dataset, dv = _filter_valid_tokenized_rows(
+        val_dataset,
         desc="Validate tokenized val rows",
-        load_from_cache_file=False,
-        writer_batch_size=1000,
+        skip=cfg.skip_tokenized_validation,
     )
     if rank == 0:
-        dt = before_train - len(dataset)
-        dv = before_val - len(val_dataset)
         print(f"[data] dropped invalid tokenized rows: train={dt}, val={dv}", flush=True)
     dataset = dataset.shuffle(seed=shuffle_seed)
     if rank == 0:

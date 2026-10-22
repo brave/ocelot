@@ -20,17 +20,36 @@ def resolve_periodic_eval_steps(trainer, *, default: int = 50) -> int:
     return max(0, int(default))
 
 
+def resolve_ipo_eval_steps() -> int:
+    """
+    IPO/CPO steps are very slow (vision + concatenated chosen/rejected forward).
+    Eval is opt-in via EVAL_STEPS; default off so training is not blocked by
+    full validation passes unless explicitly requested.
+    """
+    raw = os.environ.get("EVAL_STEPS", "").strip()
+    if raw != "":
+        return max(0, int(raw))
+    return 0
+
+
 class PeriodicEvalCallback(TrainerCallback):
     """Run evaluation every `eval_steps` (see resolve_periodic_eval_steps for how that value is chosen)."""
 
-    def __init__(self, trainer, eval_steps: int):
+    def __init__(self, trainer, eval_steps: int, *, label: str = "eval"):
         self.trainer = trainer
         self.eval_steps = int(eval_steps)
+        self.label = label
 
     def on_step_end(self, args, state, control, **kwargs):
         if self.eval_steps <= 0:
             return control
         if state.global_step > 0 and (state.global_step % self.eval_steps) == 0:
+            if (os.environ.get("LOCAL_RANK", "0")) == "0":
+                print(
+                    f"[{self.label}] starting validation at global_step={state.global_step} "
+                    f"(interval={self.eval_steps}; training progress bar will pause)",
+                    flush=True,
+                )
             self.trainer.evaluate()
         return control
 
@@ -38,7 +57,6 @@ class PeriodicEvalCallback(TrainerCallback):
 def enable_gradient_checkpointing_for_lora(model) -> None:
     """
     With LoRA + gradient checkpointing, PyTorch can warn that none of the inputs require grads.
-    This mirrors the helper from `train_script.py`.
     """
     if hasattr(model, "enable_input_require_grads"):
         try:
