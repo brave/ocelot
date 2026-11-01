@@ -10,7 +10,7 @@ asttokens==3.0.1
 attrs==25.4.0
 av==16.0.1
 bitsandbytes==0.49.0
-certifi==2025.11.12
+certifi==2026.10.18
 charset-normalizer==3.4.4
 comm==0.2.3
 datasets==5.0.1
@@ -20,7 +20,7 @@ deepspeed==0.18.3
 dill==0.4.0
 einops==0.8.1
 executing==2.2.1
-filelock==3.20.3
+filelock==4.2.1
 frozenlist==1.8.0
 fsspec==2026.6.0
 h11==0.16.0
@@ -40,7 +40,7 @@ jupyter_core==5.9.1
 MarkupSafe==3.0.3
 matplotlib-inline==0.2.1
 mpmath==1.3.0
-msgpack==1.2.1
+msgpack==1.2.3
 multidict==6.9.1
 multiprocess==0.70.18
 nest-asyncio==1.6.0
@@ -94,7 +94,7 @@ sympy==1.14.0
 tokenizers==0.22.1
 torch==2.13.0
 torchvision==0.24.1
-tornado==6.5.9
+tornado==6.6
 tqdm==4.67.1
 traitlets==5.14.3
 transformers==5.10.1
