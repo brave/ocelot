@@ -1,6 +1,6 @@
 annotated-types==0.7.0
 anyio==4.14.2 
-certifi==2025.11.12
+certifi==2026.10.18
 distro==1.9.0
 greenlet==3.2.4
 h11==0.16.0
